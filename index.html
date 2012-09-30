@@ -20,28 +20,21 @@
             $('#Go').focus().click();
         }
     });
-
-
-
 	});
 </script>
 
 <div id="header_1">
-	<h1 id="sitename">Earthquake<span id="description">Search earthquakes by city.</span></h1>
+	<h1 id="sitename">Earthquake<span id="description">Search recent earthquakes by city, or type "top10".</span></h1>
 </div>
 <div id="search_top">
 	<div>
 		<p><input type="text" name="query" id="query" class="keyword"/>	</p>
-		<!--<p class="button"><input name="" type="image" src="images/searchbutton.gif" alt="Search" /></p> //-->
-
 		<p class="button"><button id="Go">Go</button></p>
 	</div>
 </div>
 
-
 <script type="text/javascript">
-	//	Constant variables
-
+	// Constant variables
 	var BOX_RADIUS_KM = 10	// Set radius of bounding box to 10 km
 	var KM_PER_DEG = 111.12
 
@@ -50,24 +43,32 @@
 		$("#results").html('') // Clear results div
 
 		var _city = $("input:text").val();
-		var search_url= 'http://api.geonames.org/searchJSON?q=' + _city + '&username=gth656a'
+		var search_url= 'http://api.geonames.org/searchJSON?q=' + _city + '&username=gth656a'		
+
 		$.getJSON( search_url, function( data ) {
-			if ( data.geonames.length === 0 )
+			if ( data.geonames.length === 0 && _city != "top10")
 				$("#results").html( '\"' + _city + '\"' + ' does not exist in cities database.' );
 			else {
-				var loc = data.geonames[0].name + ', ' + data.geonames[0].countryName
-				var lat = data.geonames[0].lat
-				var lng = data.geonames[0].lng
-				
-				// Set bounding box parameters
-				var west = lng - BOX_RADIUS_KM / KM_PER_DEG / Math.cos ( lat * Math.PI / 180 );
-				var east = lng + BOX_RADIUS_KM / KM_PER_DEG / Math.cos ( lat * Math.PI / 180 );
+				// If query is "top10", set the url by default to max longitude and latitude for entire world.
+				search_url = 'http://api.geonames.org/earthquakesJSON?north=90&south=-90&east=180&west=-180&maxRows=10&username=gth656a'
+				var loc = "the whole world"
+				var lat = 24
+				var lng = -27
+				var zoom_lvl = 1;
+				// If query is not "top10", set the bounding box to +/- 10 km of the city coordinates
+				if ( _city != "top10" ) {
+					loc = data.geonames[0].name + ', ' + data.geonames[0].countryName
+					lat = data.geonames[0].lat
+					lng = data.geonames[0].lng
+					zoom_lvl = 10;
+					// Set bounding box parameters
+					var west = lng - BOX_RADIUS_KM / KM_PER_DEG / Math.cos ( lat * Math.PI / 180 );
+					var east = lng + BOX_RADIUS_KM / KM_PER_DEG / Math.cos ( lat * Math.PI / 180 );
+					var north = lat + BOX_RADIUS_KM / KM_PER_DEG;
+					var south = lat - BOX_RADIUS_KM / KM_PER_DEG;
 
-				var north = lat + BOX_RADIUS_KM / KM_PER_DEG;
-				var south = lat - BOX_RADIUS_KM / KM_PER_DEG;
-
-				console.log(west + ' ' + ( lat ) )
-search_url = 'http://api.geonames.org/earthquakesJSON?north=' + north + ' &south=' + south + '&east=' + east + '&west=' + west + '&maxRows=50&username=gth656a'+ '&callback=?';
+					search_url = 'http://api.geonames.org/earthquakesJSON?north=' + north + ' &south=' + south + '&east=' + east + '&west=' + west + '&maxRows=50&username=gth656a'+ '&callback=?';
+				}
 
 				$.getJSON(search_url, function( data, textStatus ) {
 
@@ -78,48 +79,54 @@ search_url = 'http://api.geonames.org/earthquakesJSON?north=' + north + ' &south
 						});
 
 					$("#results").html(data.earthquakes.length + ' earthquakes found near ' + loc + '.');	
+
 					if ( data.earthquakes.length > 0 ) {
-
-
 						map = new google.maps.Map(document.getElementById('map'), {
-						      zoom: 10,
+						      zoom: zoom_lvl,
 						      center: new google.maps.LatLng( lat, lng ),
 						      mapTypeId: google.maps.MapTypeId.ROADMAP
 						});
+
 						$("#results").append( '<br />Minimum magnitude: ' + (data.earthquakes[ data.earthquakes.length - 1].magnitude ) );
 			
 						$("#results").append( '<br />Maximum magnitude: ' + (data.earthquakes[ 0 ].magnitude ) );
+						var magdate= new Array();
+
 						// Loop over all earthquakes in JSON object
 						$.each( data.earthquakes , function( i, item ) {
-						 var marker = new google.maps.Marker({
-        position: new google.maps.LatLng( data.earthquakes[i].lat, data.earthquakes[i].lng),
-        map: map
-      });	
-						});
-					} 
-				
+							var marker = new google.maps.Marker({
+							position: new google.maps.LatLng( data.earthquakes[i].lat, data.earthquakes[i].lng),
+							map: map
+						});	
+						magdate[ i ] = [ (data.earthquakes[i].magnitude).toString(), (data.earthquakes[i].datetime).toString() ];
+						google.maps.event.addListener( marker, 'click', function(marker, i) {
+						return function() {
+						infowindow.setContent( "Magnitude: " + magdate[i][0] + "<br />Date: " + magdate[i][1] );
+							infowindow.open(map, marker);
+						}
 
+						} (marker, i) );
+						} ); // End of $.each()
+					} 
 				});
-				
 			} // End of else
 		} );
-
 	} );
-
 </script>
-
 
 <div id="results"></div>
 <div id="map" style="width: 600px; height: 450px;">
 	<script type="text/javascript">
-var map = new google.maps.Map(document.getElementById('map'), {
-      zoom: 2,
-      center: new google.maps.LatLng( 24, -27 ), // Hard-coded to start in center of world map 
-      mapTypeId: google.maps.MapTypeId.ROADMAP
-});
-</script>
+	// Initialize new map and infowindow
+		var infowindow = new google.maps.InfoWindow();
+
+		var map = new google.maps.Map(document.getElementById('map'), {
+		      zoom: 2,
+		      center: new google.maps.LatLng( 24, -27 ), // Hard-coded to start in center of world map 
+		      mapTypeId: google.maps.MapTypeId.ROADMAP
+		});
+	</script>
 </div>
 
-
- </body>
- </html>
+</body>
+</html>
