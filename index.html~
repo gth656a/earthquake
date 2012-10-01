@@ -35,7 +35,7 @@
 
 <script type="text/javascript">
 	// Constant variables
-	var BOX_RADIUS_KM = 25	// Set radius of bounding box to 10 km
+	var BOX_RADIUS_KM = 20	// Set radius of bounding box to 10 km
 	var KM_PER_DEG = 111.12
 
 	$("button:#Go").click( function() {
